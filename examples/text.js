@@ -38,6 +38,5 @@ regl.frame(() => {
     depth: 1
   })
   drawText(text(`hello world!
-this is a way to do text in regl!
-`))
+this is a way to do text in regl!`))
 })
