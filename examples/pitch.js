@@ -10,7 +10,7 @@ const drawPitch = regl({
   attribute float pitch;
   uniform float column;
   void main () {
-    gl_PointSize = 1.0;
+    gl_PointSize = 8.0;
     gl_Position = vec4(column, pitch / 5000.0 - 0.9,  0, 1);
   }
   `,
@@ -29,7 +29,7 @@ const drawPitch = regl({
     column: ({tick, viewportWidth}) => 2.0 * (tick % viewportWidth) / viewportWidth - 1.0
   },
 
-  count: 4,
+  count: 1,
   depth: {enable: false},
   primitive: 'points'
 })
