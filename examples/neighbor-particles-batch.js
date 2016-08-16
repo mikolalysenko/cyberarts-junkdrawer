@@ -7,7 +7,7 @@ const camera = require('../regl-camera')(regl, {
   maxDistance: 5
 })
 
-const LOG_N = 4
+const LOG_N = 5
 const N = (1 << LOG_N)
 const COUNT = N * N
 
@@ -112,7 +112,7 @@ const drawPairs = regl({
 
   uniforms: {
     particleState: particleTexture,
-    radius: regl.prop('radius')
+    radius: 0.125
   },
 
   attributes: {
@@ -161,43 +161,43 @@ const drawTriples = regl({
 
   uniform sampler2D particleState;
   uniform float radius;
+  uniform vec3 origin;
   uniform mat4 projection, view;
-  attribute vec2 id0, id1, id2;
+  attribute vec3 id0, id1, id2;
 
   varying float intensity;
 
   void main () {
-    vec3 p0 = texture2D(particleState, id0).xyz;
-    vec3 p1 = texture2D(particleState, id1).xyz;
-    vec3 p2 = texture2D(particleState, id2).xyz;
+    vec3 p0 = mix(texture2D(particleState, id0.xy).xyz, origin, id0.z);
+    vec3 p1 = mix(texture2D(particleState, id1.xy).xyz, origin, id1.z);
+    vec3 p2 = mix(texture2D(particleState, id2.xy).xyz, origin, id2.z);
 
     float d = max(max(length(p0 - p1), length(p2 - p1)), length(p0 - p2));
     intensity = 0.125;
 
-    gl_Position = projection * view * step(d, radius) * vec4(p0, 1);
+    gl_Position = step(d, radius) * projection * view * vec4(p0, 1);
   }
   `,
 
   uniforms: {
     particleState: particleTexture,
-    radius: 0.25
+    radius: 0.125,
+    origin: regl.prop('origin')
   },
 
   attributes: (() => {
     const triples = []
-    for (let i = 2; i < N * N; ++i) {
-      const px = (i % N) << (8 - LOG_N)
-      const py = ((i / N) | 0) << (8 - LOG_N)
-      for (let j = 1; j < i; ++j) {
+    for (let i = 2; i < COUNT; ++i) {
+      for (let j = i - 1; j < i; ++j) {
         const qx = (j % N) << (8 - LOG_N)
         const qy = ((j / N) | 0) << (8 - LOG_N)
         for (let k = 0; k < j; ++k) {
           const rx = (k % N) << (8 - LOG_N)
           const ry = ((k / N) | 0) << (8 - LOG_N)
           triples.push(
-            px, py, qx, qy, rx, ry,
-            qx, qy, rx, ry, px, py,
-            rx, ry, px, py, qx, qy)
+            0, 0, 255, qx, qy, 0, rx, ry, 0,
+            qx, qy, 0, rx, ry, 0, 0, 0, 255,
+            rx, ry, 0, 0, 0, 255, qx, qy, 0)
         }
       }
     }
@@ -206,21 +206,21 @@ const drawTriples = regl({
       id0: {
         buffer: buffer,
         offset: 0,
-        stride: 6,
+        stride: 9,
         normalized: true,
         type: 'uint8'
       },
       id1: {
         buffer: buffer,
-        offset: 2,
-        stride: 6,
+        offset: 3,
+        stride: 9,
         normalized: true,
         type: 'uint8'
       },
       id2: {
         buffer: buffer,
-        offset: 4,
-        stride: 6,
+        offset: 6,
+        stride: 9,
         normalized: true,
         type: 'uint8'
       }
@@ -241,7 +241,9 @@ const drawTriples = regl({
     mask: false
   },
 
-  count: N * N * (N * N - 1) * (N * N - 2) / 2,
+  count: (context, props, batchId) => {
+    return Math.max(0, 3 * (batchId - 1) * (batchId - 2) / 2)
+  },
 
   primitive: 'triangles'
 })
@@ -249,6 +251,12 @@ const drawTriples = regl({
 function field (x, y, z, d) {
   return 0.1 * (Math.sin((d + 1) * x) * Math.cos((3.0 - d) * y) + z * z)
 }
+
+const basePoints = Array(COUNT).fill().map(() => {
+  return {
+    origin: [0, 0, 0]
+  }
+})
 
 function updateParticles () {
   const h = 1e-4
@@ -270,11 +278,13 @@ function updateParticles () {
     const dfydx = 0.5 * (field(cx + h, cy, cz, 1) - field(cx - h, cy, cz, 1))
     const dfxdy = 0.5 * (field(cx, cy + h, cz, 0) - field(cx, cy - h, cz, 0))
 
-    const fc = 0.001 * Math.log(Math.pow(cx, 2) + Math.pow(cy, 2) + Math.pow(cz, 2))
+    const fc = 0.001 * Math.log(
+      Math.pow(cx, 2) + Math.pow(cy, 2) + Math.pow(cz, 2))
 
-    curState[4 * i] = 2.0 * cx - px + (dfzdy - dfydz) - fc * cx
-    curState[4 * i + 1] = 2.0 * cy - py + (dfxdz - dfzdx) - fc * cy
-    curState[4 * i + 2] = 2.0 * cz - pz + (dfydx - dfxdy) - fc * cz
+    const origin = basePoints[i].origin
+    origin[0] = curState[4 * i] = 2.0 * cx - px + (dfzdy - dfydz) - fc * cx
+    origin[1] = curState[4 * i + 1] = 2.0 * cy - py + (dfxdz - dfzdx) - fc * cy
+    origin[2] = curState[4 * i + 2] = 2.0 * cz - pz + (dfydx - dfxdy) - fc * cz
 
     prevState[4 * i] = cx
     prevState[4 * i + 1] = cy
@@ -291,9 +301,7 @@ regl.frame(() => {
   particleTexture.subimage(curState)
 
   camera(() => {
-    drawTriples({
-      radius: 0.25
-    })
+    drawTriples(basePoints)
     drawPairs({
       radius: 0.25
     })

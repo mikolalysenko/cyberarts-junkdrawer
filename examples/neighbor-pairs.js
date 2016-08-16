@@ -7,7 +7,7 @@ const camera = require('../regl-camera')(regl, {
   maxDistance: 5
 })
 
-const LOG_N = 4
+const LOG_N = 5
 const N = (1 << LOG_N)
 const COUNT = N * N
 
@@ -147,105 +147,6 @@ const drawPairs = regl({
   primitive: 'lines'
 })
 
-const drawTriples = regl({
-  frag: `
-  precision highp float;
-  varying float intensity;
-  void main () {
-    gl_FragColor = intensity * vec4(1, 1, 1, 1);
-  }
-  `,
-
-  vert: `
-  precision highp float;
-
-  uniform sampler2D particleState;
-  uniform float radius;
-  uniform mat4 projection, view;
-  attribute vec2 id0, id1, id2;
-
-  varying float intensity;
-
-  void main () {
-    vec3 p0 = texture2D(particleState, id0).xyz;
-    vec3 p1 = texture2D(particleState, id1).xyz;
-    vec3 p2 = texture2D(particleState, id2).xyz;
-
-    float d = max(max(length(p0 - p1), length(p2 - p1)), length(p0 - p2));
-    intensity = 0.125;
-
-    gl_Position = projection * view * step(d, radius) * vec4(p0, 1);
-  }
-  `,
-
-  uniforms: {
-    particleState: particleTexture,
-    radius: 0.25
-  },
-
-  attributes: (() => {
-    const triples = []
-    for (let i = 2; i < N * N; ++i) {
-      const px = (i % N) << (8 - LOG_N)
-      const py = ((i / N) | 0) << (8 - LOG_N)
-      for (let j = 1; j < i; ++j) {
-        const qx = (j % N) << (8 - LOG_N)
-        const qy = ((j / N) | 0) << (8 - LOG_N)
-        for (let k = 0; k < j; ++k) {
-          const rx = (k % N) << (8 - LOG_N)
-          const ry = ((k / N) | 0) << (8 - LOG_N)
-          triples.push(
-            px, py, qx, qy, rx, ry,
-            qx, qy, rx, ry, px, py,
-            rx, ry, px, py, qx, qy)
-        }
-      }
-    }
-    const buffer = regl.buffer(new Uint8Array(triples))
-    return {
-      id0: {
-        buffer: buffer,
-        offset: 0,
-        stride: 6,
-        normalized: true,
-        type: 'uint8'
-      },
-      id1: {
-        buffer: buffer,
-        offset: 2,
-        stride: 6,
-        normalized: true,
-        type: 'uint8'
-      },
-      id2: {
-        buffer: buffer,
-        offset: 4,
-        stride: 6,
-        normalized: true,
-        type: 'uint8'
-      }
-    }
-  })(),
-
-  blend: {
-    enable: true,
-    func: {
-      src: 1,
-      dst: 1
-    },
-    equation: 'add'
-  },
-
-  depth: {
-    enable: false,
-    mask: false
-  },
-
-  count: N * N * (N * N - 1) * (N * N - 2) / 2,
-
-  primitive: 'triangles'
-})
-
 function field (x, y, z, d) {
   return 0.1 * (Math.sin((d + 1) * x) * Math.cos((3.0 - d) * y) + z * z)
 }
@@ -291,11 +192,8 @@ regl.frame(() => {
   particleTexture.subimage(curState)
 
   camera(() => {
-    drawTriples({
-      radius: 0.25
-    })
     drawPairs({
-      radius: 0.25
+      radius: 0.2
     })
     drawParticles()
   })
