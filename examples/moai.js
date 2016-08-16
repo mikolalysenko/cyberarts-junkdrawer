@@ -1,6 +1,9 @@
 const regl = require('regl')()
 const camera = require('../regl-camera')(regl, {
-  center: [0, 0, 0]
+  center: [0, 0, 0],
+  distance: 100,
+  zNear: 1,
+  zFar: 10000
 })
 const mat4 = require('gl-mat4')
 const moai = require('../data/moai.json')
@@ -26,11 +29,12 @@ const drawMoai = regl({
   `,
 
   attributes: {
-    position: moai.positions,
+    position: moai.positions
+  },
+
+  uniforms: {
     model: () =>
-      mat4.scale(new Float32Array(16),
-        mat4.identity(new Float32Array(16)),
-        [0.01, 0.01, 0.01])
+      mat4.identity(new Float32Array(16))
   },
 
   elements: moai.cells

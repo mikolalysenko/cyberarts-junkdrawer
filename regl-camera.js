@@ -15,14 +15,16 @@ function createCamera (regl, props) {
     phi: props.phi || 0,
     distance: Math.log(props.distance || 10.0),
     eye: new Float32Array(3),
-    up: new Float32Array(props.up || [0, 1, 0])
+    up: new Float32Array(props.up || [0, 1, 0]),
+    zNear: props.zNear || 0.01,
+    zFar: props.zFar || 10000.0
   }
 
   var right = new Float32Array([1, 0, 0])
   var front = new Float32Array([0, 0, 1])
 
   var minDistance = Math.log('minDistance' in props ? props.minDistance : 0.1)
-  var maxDistance = Math.log('maxDistance' in props ? props.maxDistance : 1000)
+  var maxDistance = Math.log('maxDistance' in props ? props.maxDistance : 10000)
 
   var dtheta = 0
   var dphi = 0
@@ -34,10 +36,9 @@ function createCamera (regl, props) {
     if (buttons & 1) {
       var dx = (x - prevX) / window.innerWidth
       var dy = (y - prevY) / window.innerHeight
-      var w = Math.max(cameraState.distance, 0.5)
 
-      dtheta += w * dx
-      dphi += w * dy
+      dtheta += 2.0 * dx
+      dphi += 2.0 * dy
     }
     prevX = x
     prevY = y
@@ -99,8 +100,8 @@ function createCamera (regl, props) {
         return perspective(cameraState.projection,
           Math.PI / 4.0,
           viewportWidth / viewportHeight,
-          0.01,
-          1000.0)
+          cameraState.zNear,
+          cameraState.zFar)
       }
     }),
     uniforms: Object.keys(cameraState).reduce(function (uniforms, name) {
