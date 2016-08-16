@@ -33,6 +33,8 @@ module.exports = function (options) {
   const pitchCount = 'pitches' in options ? options.pitches : 4
   // minimum detectable pitch in Hz
   const maxPitch = (options.minPitch || 5000)
+  // length of moving pitch window in seconds
+  const pitchTime = (options.pitchTime || 0.25)
 
   // -------------------------------------------
   // implementation stuff
@@ -125,6 +127,18 @@ module.exports = function (options) {
 
   const pitches = Array(pitchCount).fill(0)
 
+  const pitchWindow = Math.ceil(pitchTime * sampleRate / N) | 0
+  const pitchHistogram = new Float64Array(N)
+  const pitchHistory = new Float64Array(pitchWindow * pitchCount)
+  let pitchWindowPtr = 0
+
+  const pitchIndex = Array(N).fill(0).map(function (_, i) {
+    return i
+  })
+  function comparePitch (a, b) {
+    return pitchHistogram[b] - pitchHistogram[a]
+  }
+
   const pitchQ = Array(pitchCount).fill(0)
   const pitchW = Array(pitchCount).fill(0)
 
@@ -135,6 +149,8 @@ module.exports = function (options) {
     for (let i = 0; i < N; ++i) {
       imagFreq[i] = 0
     }
+
+    // TODO: use deema's fourier module here instead
     ndfft(-1, ndrcepstrum, ndicepstrum)
 
     for (let i = 0; i < pitchCount; ++i) {
@@ -162,11 +178,31 @@ module.exports = function (options) {
       }
     }
 
+    // Update histogram
     for (let j = 0; j < pitchCount; ++j) {
+      const w = 1.0 / (1.0 + j)
       if (pitchQ[j]) {
-        pitches[j] = sampleRate / pitchQ[j]
+        pitchHistogram[pitchQ[j]] += w
+      }
+      var prev = pitchHistory[pitchWindowPtr]
+      if (prev) {
+        pitchHistogram[prev] -= w
+      }
+      pitchHistory[pitchWindowPtr] = pitchQ[j]
+      pitchWindowPtr = (pitchWindowPtr + 1) % pitchHistory.length
+    }
+
+    // Take top k pitch values for current pitch
+    // FIXME: should use heap or insertion sort here
+    pitchIndex.sort(comparePitch)
+
+    for (let j = 0; j < pitchCount; ++j) {
+      if (pitchIndex[j]) {
+        pitches[j] = sampleRate / pitchIndex[j]
       } else {
-        pitches[j] = 0
+        for (; j < pitchCount; ++j) {
+          pitches[j] = 0
+        }
       }
     }
   }
