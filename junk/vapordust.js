@@ -45,7 +45,7 @@ const updateSquare = regl({
 
     float f = l - 1.0;
 
-    vec2 n = 2.0 * p1 - p0 + 0.1 * d / l * f;
+    vec2 n = 2.0 * p1 - p0 + 0.1 * d / max(0.001, l) * f;
     gl_FragColor = vec4(n, p1);
   }
   `,
@@ -70,10 +70,19 @@ const updateSquare = regl({
 
   uniforms: {
     state: ({tick}) => squareState[(tick + 1) % 2],
-    delta: [1.0 / N, 1.0 / N]
+    delta: [1.0 / (N - 1), 1.0 / (N - 1)]
   },
 
   framebuffer: ({tick}) => squareState[tick % 2],
+
+  depth: {
+    enable: false,
+    mask: false
+  },
+
+  blend: {
+    enable: false
+  },
 
   count: 3
 })
@@ -104,7 +113,7 @@ const drawSquare = regl({
       const uv = []
       for (let i = 0; i < N; ++i) {
         for (let j = 0; j < N; ++j) {
-          uv.push([i / N, j / N])
+          uv.push([(i + 0.5) / N, (j + 0.5) / N])
         }
       }
       return uv
